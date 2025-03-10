@@ -61,6 +61,7 @@ export class PaymentService {
         redirect_url: this.redirectUrl,
         show_shop_order_id_on_extract: true,
         capture_method: "AUTOMATIC",
+        merchant_id: this.merchantId,
         purchase_units: [
           {
             amount: {
@@ -72,13 +73,13 @@ export class PaymentService {
       };
 
       console.log('Sending request to BOG:', {
-        url: `${this.apiUrl}/payments/v1/checkout/orders`,
+        url: `${this.apiUrl}/checkout/orders`,
         data: bogOrderData,
         token: token.substring(0, 10) + '...'
       });
 
       const response = await axios.post(
-        `${this.apiUrl}/payments/v1/checkout/orders`,
+        `${this.apiUrl}/checkout/orders`,
         bogOrderData,
         {
           headers: {
@@ -94,7 +95,8 @@ export class PaymentService {
       console.error('Error in createOrder:', {
         message: error.message,
         response: error.response?.data,
-        status: error.response?.status
+        status: error.response?.status,
+        config: error.config
       });
       throw error;
     }
@@ -106,7 +108,7 @@ export class PaymentService {
       const token = this.generateJWT();
       
       const response = await axios.get(
-        `${this.apiUrl}/payments/v1/checkout/orders/${orderId}`,
+        `${this.apiUrl}/checkout/orders/${orderId}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -120,7 +122,8 @@ export class PaymentService {
       console.error('Error getting order status:', {
         message: error.message,
         response: error.response?.data,
-        status: error.response?.status
+        status: error.response?.status,
+        config: error.config
       });
       throw error;
     }
