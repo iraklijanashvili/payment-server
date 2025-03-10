@@ -54,20 +54,31 @@ export class PaymentService {
       const token = this.generateJWT();
       
       const bogOrderData = {
-        ...orderData,
-        merchantId: this.merchantId,
-        redirectUrl: this.redirectUrl,
-        locale: 'ka',
-        showShippingFields: false,
+        intent: "AUTHORIZE",
+        items: orderData.items,
+        locale: "ka",
+        shop_order_id: Date.now().toString(),
+        redirect_url: this.redirectUrl,
+        show_shop_order_id_on_extract: true,
+        capture_method: "AUTOMATIC",
+        purchase_units: [
+          {
+            amount: {
+              currency_code: orderData.currency,
+              value: orderData.amount.toFixed(2)
+            }
+          }
+        ]
       };
 
       console.log('Sending request to BOG:', {
-        url: `${this.apiUrl}/orders`,
-        data: bogOrderData
+        url: `${this.apiUrl}/payments/v1/checkout/orders`,
+        data: bogOrderData,
+        token: token.substring(0, 10) + '...'
       });
 
       const response = await axios.post(
-        `${this.apiUrl}/orders`,
+        `${this.apiUrl}/payments/v1/checkout/orders`,
         bogOrderData,
         {
           headers: {
@@ -80,17 +91,22 @@ export class PaymentService {
       console.log('BOG API response:', response.data);
       return response.data;
     } catch (error: any) {
-      console.error('Error in createOrder:', error.response?.data || error.message);
+      console.error('Error in createOrder:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       throw error;
     }
   }
 
   async getOrderStatus(orderId: string) {
     try {
+      console.log('Getting order status for:', orderId);
       const token = this.generateJWT();
       
       const response = await axios.get(
-        `${this.apiUrl}/orders/${orderId}`,
+        `${this.apiUrl}/payments/v1/checkout/orders/${orderId}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -98,9 +114,14 @@ export class PaymentService {
         }
       );
 
+      console.log('Order status response:', response.data);
       return response.data;
-    } catch (error) {
-      console.error('შეცდომა გადახდის სტატუსის მიღებისას:', error);
+    } catch (error: any) {
+      console.error('Error getting order status:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       throw error;
     }
   }

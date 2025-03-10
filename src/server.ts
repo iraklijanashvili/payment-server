@@ -13,24 +13,30 @@ const allowedOrigins = [
   'https://uniqo.ge',
   'https://www.uniqo.ge',
   'http://localhost:3000',
-  'http://localhost:5173'
+  'http://localhost:5173',
+  'https://api.bog.ge'
 ];
 
 app.use(cors({
   origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+    console.log('Incoming request from origin:', origin);
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.log('Origin not allowed:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
 
 // Root endpoint
 app.get('/', (req, res) => {
+  console.log('Root endpoint accessed');
   res.json({
     status: 'ok',
     message: 'Uniqo Payment Server',
@@ -40,9 +46,11 @@ app.get('/', (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  console.log('Health check endpoint accessed');
   res.json({
     status: 'healthy',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV
   });
 });
 
@@ -51,4 +59,6 @@ app.use('/api/payments', paymentRoutes);
 
 app.listen(port, () => {
   console.log(`🚀 გადახდების სერვერი გაშვებულია პორტზე ${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`BOG API URL: ${process.env.BOG_API_URL}`);
 }); 
