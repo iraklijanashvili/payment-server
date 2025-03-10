@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { PaymentService } from '../services/payment.service';
 
 const router = Router();
 const paymentService = new PaymentService();
 
-router.post('/create-order', async (req, res) => {
+router.post('/create-order', async (req: Request, res: Response) => {
   try {
     const orderData = req.body;
     const result = await paymentService.createOrder(orderData);
@@ -17,7 +17,7 @@ router.post('/create-order', async (req, res) => {
   }
 });
 
-router.get('/order-status/:orderId', async (req, res) => {
+router.get('/order-status/:orderId', async (req: Request, res: Response) => {
   try {
     const { orderId } = req.params;
     const status = await paymentService.getOrderStatus(orderId);

@@ -14,10 +14,21 @@ interface CreateOrderRequest {
 }
 
 export class PaymentService {
-  private readonly clientId = process.env.BOG_CLIENT_ID;
-  private readonly clientSecret = process.env.BOG_CLIENT_SECRET;
-  private readonly merchantId = process.env.BOG_MERCHANT_ID;
-  private readonly apiUrl = process.env.BOG_API_URL;
+  private readonly clientId: string;
+  private readonly clientSecret: string;
+  private readonly merchantId: string;
+  private readonly apiUrl: string;
+
+  constructor() {
+    this.clientId = process.env.BOG_CLIENT_ID || '';
+    this.clientSecret = process.env.BOG_CLIENT_SECRET || '';
+    this.merchantId = process.env.BOG_MERCHANT_ID || '';
+    this.apiUrl = process.env.BOG_API_URL || '';
+
+    if (!this.clientId || !this.clientSecret || !this.merchantId || !this.apiUrl) {
+      throw new Error('გთხოვთ შეავსოთ ყველა საჭირო გარემოს ცვლადი');
+    }
+  }
 
   private generateJWT(): string {
     const payload = {
@@ -26,7 +37,7 @@ export class PaymentService {
       exp: Math.floor(Date.now() / 1000) + (60 * 5), // 5 წუთი
     };
 
-    return jwt.sign(payload, this.clientSecret as string);
+    return jwt.sign(payload, this.clientSecret);
   }
 
   async createOrder(orderData: CreateOrderRequest) {
