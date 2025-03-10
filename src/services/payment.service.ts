@@ -14,44 +14,43 @@ interface CreateOrderRequest {
 }
 
 export class PaymentService {
-  private readonly clientId: string;
-  private readonly clientSecret: string;
+  private readonly publicKey: string;
+  private readonly secretKey: string;
   private readonly merchantId: string;
   private readonly apiUrl: string;
   private readonly redirectUrl: string;
 
   constructor() {
-    this.clientId = process.env.BOG_CLIENT_ID || '';
-    this.clientSecret = process.env.BOG_CLIENT_SECRET || '';
+    this.publicKey = process.env.BOG_CLIENT_ID || '';
+    this.secretKey = process.env.BOG_CLIENT_SECRET || '';
     this.merchantId = process.env.BOG_MERCHANT_ID || '';
     this.apiUrl = process.env.BOG_API_URL || '';
     this.redirectUrl = process.env.BOG_REDIRECT_URL || '';
 
-    if (!this.clientId || !this.clientSecret || !this.merchantId || !this.apiUrl || !this.redirectUrl) {
+    if (!this.publicKey || !this.secretKey || !this.merchantId || !this.apiUrl || !this.redirectUrl) {
       throw new Error('გთხოვთ შეავსოთ ყველა საჭირო გარემოს ცვლადი');
     }
 
     console.log('Payment service initialized with:', {
       apiUrl: this.apiUrl,
       merchantId: this.merchantId,
-      redirectUrl: this.redirectUrl
+      redirectUrl: this.redirectUrl,
+      publicKey: this.publicKey
     });
   }
 
-  private generateJWT(): string {
-    const payload = {
-      iss: this.clientId,
-      aud: ['bog'],
-      exp: Math.floor(Date.now() / 1000) + (60 * 5), // 5 წუთი
-    };
-
-    return jwt.sign(payload, this.clientSecret);
+  private generateAuthHeader(): string {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const dataToSign = this.publicKey + timestamp;
+    const signature = jwt.sign(dataToSign, this.secretKey);
+    
+    return `Basic ${Buffer.from(`${this.publicKey}:${signature}:${timestamp}`).toString('base64')}`;
   }
 
   async createOrder(orderData: CreateOrderRequest) {
     try {
       console.log('Creating order with data:', orderData);
-      const token = this.generateJWT();
+      const authHeader = this.generateAuthHeader();
       
       const bogOrderData = {
         intent: orderData.intent,
@@ -77,17 +76,17 @@ export class PaymentService {
       };
 
       console.log('Sending request to BOG:', {
-        url: `${this.apiUrl}/v1/checkout/orders`,
+        url: `${this.apiUrl}/payments/v1/checkout/orders`,
         data: bogOrderData,
-        token: token.substring(0, 10) + '...'
+        authHeader: authHeader.substring(0, 20) + '...'
       });
 
       const response = await axios.post(
-        `${this.apiUrl}/v1/checkout/orders`,
+        `${this.apiUrl}/payments/v1/checkout/orders`,
         bogOrderData,
         {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': authHeader,
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           }
@@ -110,13 +109,13 @@ export class PaymentService {
   async getOrderStatus(orderId: string) {
     try {
       console.log('Getting order status for:', orderId);
-      const token = this.generateJWT();
+      const authHeader = this.generateAuthHeader();
       
       const response = await axios.get(
-        `${this.apiUrl}/v1/checkout/orders/${orderId}`,
+        `${this.apiUrl}/payments/v1/checkout/orders/${orderId}`,
         {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': authHeader,
             'Accept': 'application/json'
           }
         }
