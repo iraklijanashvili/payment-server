@@ -54,7 +54,7 @@ export class PaymentService {
       const token = this.generateJWT();
       
       const bogOrderData = {
-        intent: "AUTHORIZE",
+        intent: orderData.intent,
         items: orderData.items,
         locale: "ka",
         shop_order_id: Date.now().toString(),
@@ -73,18 +73,19 @@ export class PaymentService {
       };
 
       console.log('Sending request to BOG:', {
-        url: `${this.apiUrl}/checkout/orders`,
+        url: `${this.apiUrl}/payments/v1/checkout/orders`,
         data: bogOrderData,
         token: token.substring(0, 10) + '...'
       });
 
       const response = await axios.post(
-        `${this.apiUrl}/checkout/orders`,
+        `${this.apiUrl}/payments/v1/checkout/orders`,
         bogOrderData,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json'
           }
         }
       );
@@ -108,10 +109,11 @@ export class PaymentService {
       const token = this.generateJWT();
       
       const response = await axios.get(
-        `${this.apiUrl}/checkout/orders/${orderId}`,
+        `${this.apiUrl}/payments/v1/checkout/orders/${orderId}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
           }
         }
       );
