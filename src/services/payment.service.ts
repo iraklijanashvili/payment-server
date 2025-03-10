@@ -18,16 +18,24 @@ export class PaymentService {
   private readonly clientSecret: string;
   private readonly merchantId: string;
   private readonly apiUrl: string;
+  private readonly redirectUrl: string;
 
   constructor() {
     this.clientId = process.env.BOG_CLIENT_ID || '';
     this.clientSecret = process.env.BOG_CLIENT_SECRET || '';
     this.merchantId = process.env.BOG_MERCHANT_ID || '';
     this.apiUrl = process.env.BOG_API_URL || '';
+    this.redirectUrl = process.env.BOG_REDIRECT_URL || '';
 
-    if (!this.clientId || !this.clientSecret || !this.merchantId || !this.apiUrl) {
+    if (!this.clientId || !this.clientSecret || !this.merchantId || !this.apiUrl || !this.redirectUrl) {
       throw new Error('გთხოვთ შეავსოთ ყველა საჭირო გარემოს ცვლადი');
     }
+
+    console.log('Payment service initialized with:', {
+      apiUrl: this.apiUrl,
+      merchantId: this.merchantId,
+      redirectUrl: this.redirectUrl
+    });
   }
 
   private generateJWT(): string {
@@ -42,17 +50,25 @@ export class PaymentService {
 
   async createOrder(orderData: CreateOrderRequest) {
     try {
+      console.log('Creating order with data:', orderData);
       const token = this.generateJWT();
       
+      const bogOrderData = {
+        ...orderData,
+        merchantId: this.merchantId,
+        redirectUrl: this.redirectUrl,
+        locale: 'ka',
+        showShippingFields: false,
+      };
+
+      console.log('Sending request to BOG:', {
+        url: `${this.apiUrl}/orders`,
+        data: bogOrderData
+      });
+
       const response = await axios.post(
         `${this.apiUrl}/orders`,
-        {
-          ...orderData,
-          merchantId: this.merchantId,
-          redirectUrl: process.env.BOG_REDIRECT_URL,
-          locale: 'ka',
-          showShippingFields: false,
-        },
+        bogOrderData,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -61,9 +77,10 @@ export class PaymentService {
         }
       );
 
+      console.log('BOG API response:', response.data);
       return response.data;
-    } catch (error) {
-      console.error('შეცდომა გადახდის შექმნისას:', error);
+    } catch (error: any) {
+      console.error('Error in createOrder:', error.response?.data || error.message);
       throw error;
     }
   }

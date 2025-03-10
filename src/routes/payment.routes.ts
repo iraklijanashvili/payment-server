@@ -6,13 +6,17 @@ const paymentService = new PaymentService();
 
 router.post('/create-order', async (req: Request, res: Response) => {
   try {
+    console.log('Received order request:', req.body);
     const orderData = req.body;
     const result = await paymentService.createOrder(orderData);
+    console.log('Payment service response:', result);
     res.json(result);
   } catch (error: any) {
+    console.error('Error creating order:', error);
     res.status(500).json({
       error: 'შეცდომა გადახდის შექმნისას',
-      details: error.message
+      details: error.message,
+      stack: error.stack
     });
   }
 });
