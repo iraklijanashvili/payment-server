@@ -55,13 +55,17 @@ export class PaymentService {
       
       const bogOrderData = {
         intent: orderData.intent,
-        items: orderData.items,
+        items: orderData.items.map(item => ({
+          amount: item.amount,
+          description: item.description,
+          quantity: item.quantity,
+          product_id: item.product_id
+        })),
         locale: "ka",
         shop_order_id: Date.now().toString(),
         redirect_url: this.redirectUrl,
         show_shop_order_id_on_extract: true,
         capture_method: "AUTOMATIC",
-        merchant_id: this.merchantId,
         purchase_units: [
           {
             amount: {
@@ -73,13 +77,13 @@ export class PaymentService {
       };
 
       console.log('Sending request to BOG:', {
-        url: `${this.apiUrl}/payments/v1/checkout/orders`,
+        url: `${this.apiUrl}/v1/checkout/orders`,
         data: bogOrderData,
         token: token.substring(0, 10) + '...'
       });
 
       const response = await axios.post(
-        `${this.apiUrl}/payments/v1/checkout/orders`,
+        `${this.apiUrl}/v1/checkout/orders`,
         bogOrderData,
         {
           headers: {
@@ -109,7 +113,7 @@ export class PaymentService {
       const token = this.generateJWT();
       
       const response = await axios.get(
-        `${this.apiUrl}/payments/v1/checkout/orders/${orderId}`,
+        `${this.apiUrl}/v1/checkout/orders/${orderId}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
