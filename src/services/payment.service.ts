@@ -1,10 +1,8 @@
-import jwt from 'jsonwebtoken';
 import axios from 'axios';
 
 interface CreateOrderRequest {
   amount: number;
   currency: string;
-  intent: string;
   items: Array<{
     amount: number;
     description: string;
@@ -19,6 +17,8 @@ export class PaymentService {
   private readonly merchantId: string;
   private readonly apiUrl: string;
   private readonly redirectUrl: string;
+  private accessToken: string | null = null;
+  private tokenExpiry: number = 0;
 
   constructor() {
     this.publicKey = process.env.BOG_CLIENT_ID || '';
@@ -31,54 +31,79 @@ export class PaymentService {
       throw new Error('გთხოვთ შეავსოთ ყველა საჭირო გარემოს ცვლადი');
     }
 
-    console.log('Payment service initialized with:', {
+    console.log('გადახდის სერვისი ინიციალიზებულია:', {
       apiUrl: this.apiUrl,
       merchantId: this.merchantId,
-      redirectUrl: this.redirectUrl,
-      publicKey: this.publicKey
+      redirectUrl: this.redirectUrl
     });
   }
 
-  private generateAuthHeader(): string {
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const dataToSign = this.publicKey + timestamp;
-    const signature = jwt.sign(dataToSign, this.secretKey);
-    
-    return `Basic ${Buffer.from(`${this.publicKey}:${signature}:${timestamp}`).toString('base64')}`;
+  private async getAccessToken(): Promise<string> {
+    try {
+      if (this.accessToken && Date.now() < this.tokenExpiry) {
+        return this.accessToken;
+      }
+
+      console.log('ვიღებთ ახალ წვდომის ტოკენს');
+      
+      const response = await axios.post(
+        'https://oauth2.bog.ge/auth/realms/bog/protocol/openid-connect/token',
+        'grant_type=client_credentials',
+        {
+          auth: {
+            username: this.publicKey,
+            password: this.secretKey
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        }
+      );
+
+      if (!response.data.access_token) {
+        throw new Error('წვდომის ტოკენი ვერ მოიძებნა პასუხში');
+      }
+
+      this.accessToken = response.data.access_token;
+      this.tokenExpiry = Date.now() + (response.data.expires_in * 1000);
+
+      console.log('მიღებულია ახალი წვდომის ტოკენი');
+      return response.data.access_token;
+    } catch (error: any) {
+      console.error('შეცდომა წვდომის ტოკენის მიღებისას:', error.response?.data || error.message);
+      throw new Error('შეცდომა წვდომის ტოკენის მიღებისას');
+    }
   }
 
   async createOrder(orderData: CreateOrderRequest) {
     try {
-      console.log('Creating order with data:', orderData);
-      const authHeader = this.generateAuthHeader();
+      console.log('ვქმნით შეკვეთას მონაცემებით:', orderData);
+      const token = await this.getAccessToken();
       
       const bogOrderData = {
-        intent: orderData.intent,
-        items: orderData.items.map(item => ({
-          amount: item.amount,
-          description: item.description,
-          quantity: item.quantity,
-          product_id: item.product_id
-        })),
-        locale: "ka",
-        shop_order_id: Date.now().toString(),
-        redirect_url: this.redirectUrl,
-        show_shop_order_id_on_extract: true,
-        capture_method: "AUTOMATIC",
-        purchase_units: [
-          {
-            amount: {
-              currency_code: orderData.currency,
-              value: orderData.amount.toFixed(2)
-            }
-          }
-        ]
+        merchantId: this.merchantId,
+        purchase_units: {
+          currency: orderData.currency,
+          total_amount: orderData.amount,
+          basket: orderData.items.map(item => ({
+            product_id: item.product_id,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.amount
+          }))
+        },
+        callback_url: this.redirectUrl,
+        redirect_urls: {
+          success: `${process.env.FRONTEND_URL}/payment/status`,
+          fail: `${process.env.FRONTEND_URL}/payment/status`
+        },
+        capture: "automatic",
+        locale: "ka"
       };
 
-      console.log('Sending request to BOG:', {
+      console.log('ვაგზავნით მოთხოვნას BOG-ში:', {
         url: `${this.apiUrl}/payments/v1/checkout/orders`,
-        data: bogOrderData,
-        authHeader: authHeader.substring(0, 20) + '...'
+        data: bogOrderData
       });
 
       const response = await axios.post(
@@ -86,21 +111,19 @@ export class PaymentService {
         bogOrderData,
         {
           headers: {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         }
       );
 
-      console.log('BOG API response:', response.data);
+      console.log('BOG API პასუხი:', response.data);
       return response.data;
     } catch (error: any) {
-      console.error('Error in createOrder:', {
+      console.error('შეცდომა შეკვეთის შექმნისას:', {
         message: error.message,
         response: error.response?.data,
-        status: error.response?.status,
-        config: error.config
+        status: error.response?.status
       });
       throw error;
     }
@@ -108,27 +131,25 @@ export class PaymentService {
 
   async getOrderStatus(orderId: string) {
     try {
-      console.log('Getting order status for:', orderId);
-      const authHeader = this.generateAuthHeader();
+      console.log('ვამოწმებთ შეკვეთის სტატუსს:', orderId);
+      const token = await this.getAccessToken();
       
       const response = await axios.get(
-        `${this.apiUrl}/payments/v1/checkout/orders/${orderId}`,
+        `${this.apiUrl}/payments/v1/receipt/${orderId}`,
         {
           headers: {
-            'Authorization': authHeader,
-            'Accept': 'application/json'
+            'Authorization': `Bearer ${token}`
           }
         }
       );
 
-      console.log('Order status response:', response.data);
+      console.log('შეკვეთის სტატუსის პასუხი:', response.data);
       return response.data;
     } catch (error: any) {
-      console.error('Error getting order status:', {
+      console.error('შეცდომა შეკვეთის სტატუსის მიღებისას:', {
         message: error.message,
         response: error.response?.data,
-        status: error.response?.status,
-        config: error.config
+        status: error.response?.status
       });
       throw error;
     }
